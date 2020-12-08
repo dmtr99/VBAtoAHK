@@ -2,6 +2,7 @@
 ; Used to convert recorded Excel VBA Code to AHK com Code
 ; Already working fine in a lot of cases, but a lot of improvements can be made
 ; 2020-11-22: Added Word translation and Macro Explorer (to make Macro Explorer work, please lower the macro security)
+; 2020-12-08: Added automatic download of constants and set function to work global
 
 #NoEnv  ; Recommended for performance and compatibility with future AutoHotkey releases.
 SetWorkingDir %A_ScriptDir%  ; Ensures a consistent starting directory.
@@ -62,7 +63,7 @@ Gui, Submit  ; Save the input from the user to each control's associated variabl
 ExitApp
 
 MenuHandler:
-MsgBox,  test
+MsgBox, test
 return
 
 VBAtoAHK(VBA_Code){
@@ -183,14 +184,15 @@ VBAtoAHK(VBA_Code){
 		Line := RegExReplace(Line, "i)^(\s*)Else$", "$1}`n$1Else{")
 		
 		; Defining variables
-		Variable := RegExReplace(Line, "(:=\s?|\()(xl|mso|wd|sig|rgb|pp|pb|ol|_xl)[A-Z0-9][A-Za-z0-9]*", "$1", RegexCount)
+		PreConstants := "xl|mso|wd|sig|rgb|pp|pb|ol|_xl|Backstage|Broadcast|cert|cipher|contverres|empty|enc|mf"
+		Variable := RegExReplace(Line, "(:=\s?|\()(" PreConstants ")[A-Z0-9][A-Za-z0-9]*", "$1", RegexCount)
 		LineEnd := Line
 		LineStart := ""
 		Loop, %RegexCount%
 		{
-			Variable := RegExReplace(LineEnd, "^.*?(\s?:=\s?|\()((xl|mso|wd|sig|rgb|pp|pb|ol|_xl)[A-Z0-9][A-Za-z0-9]*).*$", "$2", RegexCount)
-			LineStart := LineStart RegExReplace(LineEnd, "^(.*?(\s?:=\s?|\()(xl|mso|wd|sig|rgb|pp|pb|ol|_xl)[A-Z0-9][A-Za-z0-9]*)(.*)$", "$1 := " arrXlsConstants[Variable] , RegexCount)
-			LineEnd := RegExReplace(LineEnd, "^(.*?(\s?:=\s?|\()(xl|mso|wd|sig|rgb|pp|pb|ol|_xl)[A-Z0-9][A-Za-z0-9]*)(.*)$", "$4", RegexCount)
+			Variable := RegExReplace(LineEnd, "^.*?(\s?:=\s?|\()((" PreConstants ")[A-Z0-9][A-Za-z0-9]*).*$", "$2", RegexCount)
+			LineStart := LineStart RegExReplace(LineEnd, "^(.*?(\s?:=\s?|\()(" PreConstants ")[A-Z0-9][A-Za-z0-9]*)(.*)$", "$1 := " arrXlsConstants[Variable] , RegexCount)
+			LineEnd := RegExReplace(LineEnd, "^(.*?(\s?:=\s?|\()(" PreConstants ")[A-Z0-9][A-Za-z0-9]*)(.*)$", "$4", RegexCount)
 			Line := LineStart LineEnd
 		}
 		
@@ -212,7 +214,7 @@ VBAtoAHK(VBA_Code){
 			if (!InStr(VBA_Code, "End Sub")){
 				Continue
 			}
-			Line := RegExReplace(Line, "(^\s*)(\w*)\s(.*)$", "$1$3{")
+			Line := RegExReplace(Line, "(^\s*)(\w*)\s(.*)$", "$1$3{`n$1global")
 		}
 		
 		Line := StringCodeReplace(Line, " & ", " ")
@@ -231,6 +233,9 @@ VBAtoAHK(VBA_Code){
 }
 
 VBAtoAHK_LoadArrConstants(){
+	if !FileExist(A_ScriptDir "\Constants.txt"){
+		URLDownloadToFile, https://github.com/dmtr99/VBAtoAHK/raw/main/Constants.txt, %A_ScriptDir%\Constants.txt
+	}
 	FileRead, xlsInterfaceConstants, %A_ScriptDir%\Constants.txt
 	
 	arrXlsConstants := {}
